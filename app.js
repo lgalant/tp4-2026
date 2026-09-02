@@ -71,6 +71,7 @@ app.post('/login', async (req,res) => {
 app.get('/escucha', async (req,res) => {
 
  const authHeader = req.headers['authorization'];
+  console.log("headers", req.headers)
  if (!authHeader) {
    return res.status(401).send({ error: 'No llegó ningún token en los headers' });
  }
@@ -98,8 +99,6 @@ app.get('/escucha', async (req,res) => {
    return res.status(500).send({ error: 'Error accediendo a la bd' });
  }
 })
-//app.listen(PORT, () => {
-//  console.log(`Local en http://localhost:${PORT}`);
-//});
+//app.listen(PORT, () => { console.log(`Local en http://localhost:${PORT}`);});
 
 export default app;

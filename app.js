@@ -1,13 +1,18 @@
-import pkg from 'pg'
-import dbconfig from './dbconfig.js'
+//import pkg from 'pg'
+//import dbconfig from './dbconfig.js'
+//import bcrypt from 'bcrypt'
+//import jwt from 'jsonwebtoken'
+
 import express from 'express'
-import bcrypt from 'bcrypt'
 import cors from "cors";
-import jwt from 'jsonwebtoken'
+
+import authRouter from './Routes/authRouter.js'
+import cancionRouter from './Routes/cancionRouter.js'
 
 // Postgres Pool en vez de client, no necesita connect ni end
-const {Pool} = pkg;
-const pool = new Pool(dbconfig)
+//const {Pool} = pkg;
+//const pool = new Pool(dbconfig)
+
 
 
 const app = express()
@@ -19,86 +24,31 @@ const PORT = process.env.PORT || 3000;
 
 const JWT_SECRET = 'veryverysecret!'
 
-app.post('/crearusuario', async (req,res) => {
-  const user = req.body;
-  if(!user.username || !user.nombre || !user.password  )
-    return res.status(400).json({message:"Debes completar todos los campos"})
+const horaMiddleware = function (req, res, next) {
+  console.log('Middleware (Antes): ' + new Date().toISOString());
+  next(); 	// Ir al próximo middleware
+  console.log('Middleware (Despues): ' + new Date().toISOString());
+}
+//app.use(horaMiddleware);
+app.use("/auth", authRouter);
+app.use("/cancion", cancionRouter);
 
-  try {
-    const hashedPwd = await bcrypt.hash(user.password,10);
-    const result = await pool.query("insert into usuario(username, nombre, password) values ($1,$2,$3) returning id",
-      [user.username, user.nombre,hashedPwd])
-    console.log("result.rows", result.rows)
-       res.status(201).json({message:"Usuario creado!, id:" + result.rows[0].id})
+const unknownEndpoint = (request, response) => {
+    let jsonResponse = {
+        "Error"     : "unknown endpoint",
+        "IP"        : request.ip,
+        "Method"    : request.method,
+        "Path"      : request.path,
+        "Query"     : request.query,
+        "Body"      : request.body
+     };
+    response.status(404).send(jsonResponse);
+}
 
-  }
-  catch (err) {
-    console.log("Error:", err)
-    return res.status(500).json({message:"Error creando usuario en bd" + err})
-  }
-})
+app.use(unknownEndpoint);
 
-app.post('/login', async (req,res) => {
-  const user = req.body;
-  if(!user.username|| !user.password  )
-    return res.status(400).json({message:"Debes completar todos los campos"})
-
-  try {
-    const result = await pool.query("select id, password from usuario where username = $1",[user.username]);
-    if (result.rowCount == 0)
-      return res.status(400).json({message:"Usuario inexistente o clave incorrecta"})
-
-    const dbUser = result.rows[0];
-    const passOK = await bcrypt.compare(user.password, dbUser.password)
-    if (!passOK) {
-      return res.status(400).json({message:"Usuario inexistente o clave incorrecta"})
-    }
-
-    const payload = {
-      id: dbUser.id
-    }
-
-    const token = jwt.sign(payload, JWT_SECRET, {expiresIn:'1h'})
-    return res.status(200).json({token})
-  }
-  catch (err) {
-    console.log("Error:", err)
-    return res.status(500).json({message:"Error accediendo a bd" + err})
-  }
-
-})
-
-app.get('/escucha', async (req,res) => {
-
- const authHeader = req.headers['authorization'];
-  console.log("headers", req.headers)
- if (!authHeader) {
-   return res.status(401).send({ error: 'No llegó ningún token en los headers' });
- }
- const token = authHeader.split(' ')[1];
- let id = 0;
-  try {
-   const payload = jwt.verify(token, JWT_SECRET);
-   id = payload.id;
-
- } catch (err) {
-   console.error(err);
-   return res.status(401).send({ error: 'Unauthorized' });
- }
-
-   try {
-    const result = await pool.query(`select c.nombre, e.reproducciones 
-                                    from cancion c join escucha e 
-                                    on c.id = e.cancion_id where e.usuario_id =$1`,[id]);
-
-    console.log("Token verified:", id);
-    return res.status(200).json({canciones:result.rows})
-
- } catch (err) {
-   console.error(err);
-   return res.status(500).send({ error: 'Error accediendo a la bd' });
- }
-})
 //app.listen(PORT, () => { console.log(`Local en http://localhost:${PORT}`);});
 
 export default app;
+
+ 
